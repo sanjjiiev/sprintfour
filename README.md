@@ -9,47 +9,56 @@ pinned: false
 ---
 
 
+
 # Glassbox – Trust & Explainability for Document Anonymization
 
-**Sprintfour Hackathon 2026 – Submission for Problem 1 (Marcus)**
+**Sprintfour Hackathon 2026 – Submission for Problem 1 (Marcus), with support for Problems 2 & 3**
 
-Glassbox is a full-stack application that redacts personally identifiable information (PII) from documents and **explains every decision**. It shows why a span was hidden and why another span was left visible, helping users trust the anonymization process.
+Glassbox is a full-stack document anonymization tool that **redacts PII** from text, PDF, and DOCX files, and **explains every decision** – why a piece was hidden and why another was left visible. It is designed to build trust with sceptical users, while also supporting high‑volume workflows and quick corrections.
 
-**Live Demo**: Add the hosted URL here if available.
+Live Demo: [https://Sanjjiiev-glassbox.hf.space](https://Sanjjiiev-glassbox.hf.space)
 
 ---
 
-## Problem Statement
+## The Problem We Solve
 
-Marcus has a sensitive document that he wants to paste into an AI tool, but he does not trust a black-box redaction service. He wants to know:
+Marcus is anxious about using AI tools on sensitive documents. He has heard stories of “redacted” documents where the information was still recoverable. He will not adopt a tool he cannot interrogate.
 
-- Why was this piece redacted?
-- Why was that piece kept visible?
-- Can he override the tool's decision?
+**Glassbox answers his constant question:** *“Why this, and why not that?”*
 
-Glassbox answers these questions with a clickable document viewer, an inspector panel that explains the reasoning, and manual override controls.
+But it goes further:
+- **For Maya (Problem 2)** – it handles file uploads (PDF, DOCX, TXT) and batch‑like processing, so she can anonymise many documents quickly.
+- **For Sam (Problem 3)** – it provides a correction experience: click any token, see why it was redacted or kept, and toggle the decision with one click. The risk summary and entity filter help him spot mistakes fast.
 
 ---
 
 ## Features
 
-- **Zero-data leakage** – raw text never leaves the backend; only redacted text and metadata are sent to the client.
-- **Token-level explanations** – each word or phrase is annotated with its entity type, confidence score, and a plain-English reason.
-- **Confidence gauge** – color-coded indicators show how certain the model is about each decision.
-- **Context highlights** – the inspector displays the surrounding words that triggered detection.
-- **Manual overrides** – users can toggle any decision between redact and keep visible with one click.
-- **Real-time updates** – paste new text and the analysis runs instantly.
+- **Zero‑data leakage** – raw text never leaves the backend; only redacted text and metadata are sent to the client.
+- **Token‑level explanations** – each segment (word or phrase) shows its entity type, confidence score, and a plain‑English reason.
+- **Confidence gauge** – colour‑coded risk indicators (red/yellow/green) help users quickly gauge certainty.
+- **Context highlights** – the inspector displays surrounding words that triggered the detection (fully implemented in code, though shown as empty list for simplicity).
+- **Manual overrides** – users can toggle any decision (REDACTED ↔ KEPT_VISIBLE) with one click.
+- **Multi‑format input** – paste text, upload `.txt`, `.docx`, or `.pdf`. Text is extracted and anonymised.
+- **Format‑preserving download** – download the redacted file in its original format (PDF with black rectangles, DOCX with `[REDACTED]` and black highlight, or plain `.txt`).
+- **Risk Summary** – at a glance: total tokens, redacted, visible, overrides, and average confidence.
+- **Copy Redacted** – copy the redacted text to your clipboard with one click.
+- **Entity Type Filter** – filter the document view by entity type (e.g., PERSON, EMAIL) to focus on specific categories.
+- **Real‑time updates** – edit the text or upload a new file, and the analysis runs instantly.
+- **Deployed on Hugging Face Spaces** – accessible anywhere, with a fully containerised stack.
 
 ---
 
 ## Tech Stack
 
-| Layer                   | Technology                                             |
-| ----------------------- | ------------------------------------------------------ |
-| **Backend**       | Python 3.13, FastAPI, Uvicorn                          |
-| **PII Detection** | Microsoft Presidio (Analyzer + Anonymizer) + spaCy NLP |
-| **Frontend**      | React 18, Vite, Tailwind CSS                           |
-| **Communication** | REST API (JSON), CORS for local development            |
+| Layer                   | Technology                                                                                         |
+| ----------------------- | -------------------------------------------------------------------------------------------------- |
+| **Backend**             | Python 3.11, FastAPI, Uvicorn                                                                      |
+| **PII Detection**       | Microsoft Presidio (Analyzer + Anonymizer) + spaCy `en_core_web_sm`                                |
+| **Document Processing** | PyMuPDF (PDF), `python-docx` (DOCX), `mammoth` (DOCX text extraction)                             |
+| **Frontend**            | React 18, Vite, Tailwind CSS                                                                       |
+| **Communication**       | REST API (JSON for text, multipart/form-data for file uploads)                                    |
+| **Deployment**          | Docker, Hugging Face Spaces                                                                        |
 
 ---
 
@@ -58,101 +67,119 @@ Glassbox answers these questions with a clickable document viewer, an inspector 
 ```text
 glassbox/
 ├── backend/
-│   ├── main.py               # FastAPI app and endpoints
-│   ├── models.py             # Pydantic schemas
-│   ├── service.py            # PII detection and anonymization logic
-│   ├── requirements.txt      # Python dependencies
-│   └── .env                  # Optional environment variables
+│   ├── __init__.py          # Makes backend a Python package
+│   ├── main.py              # FastAPI app & endpoints
+│   ├── models.py            # Pydantic schemas
+│   ├── service.py           # PII detection, anonymization, span building
+│   ├── file_service.py      # PDF/DOCX redaction with overrides
+│   ├── requirements.txt     # Python dependencies
+│   └── .env                 # (optional) environment variables
 ├── frontend/
-│   ├── index.html
+│   ├── src/
+│   │   ├── App.jsx          # Main React component
+│   │   ├── components/
+│   │   │   ├── DocumentViewer.jsx
+│   │   │   └── InspectorPanel.jsx
+│   │   └── styles/
+│   │       └── index.css
 │   ├── package.json
-│   ├── tailwind.config.js
-│   ├── postcss.config.js
 │   ├── vite.config.js
-│   └── src/
-│       ├── main.jsx
-│       ├── App.jsx
-│       ├── components/
-│       │   ├── DocumentViewer.jsx
-│       │   └── InspectorPanel.jsx
-│       └── styles/
-│           └── index.css
-├── README.md
+│   ├── tailwind.config.js
+│   └── postcss.config.js
+├── Dockerfile               # Multi‑stage build for HF Spaces
+├── README.md                # This file
 └── .gitignore
 ```
+
+---
 
 ## Setup & Run Locally
 
 ### Prerequisites
 
-- **Python 3.13** (or 3.12 if you encounter build issues)
+- **Python 3.11** (3.12 also works)
 - **Node.js** 18+
 - **npm** or **yarn**
-- A C++ compiler for building native extensions, required only if installing Presidio from source
 
 ### 1. Backend
 
 ```bash
 cd backend
 
-# Create virtual environment
+# Create and activate virtual environment
 python -m venv venv
 source venv/bin/activate      # Windows: venv\Scripts\activate
 
-# Upgrade pip and build tools
+# Upgrade pip & build tools
 pip install --upgrade pip setuptools wheel
 
-# Install dependencies (including Presidio from GitHub for Python 3.13)
+# Install dependencies (Presidio installed from GitHub for reliability)
 pip install -r requirements.txt
 
-# Download the spaCy language model
-python -m spacy download en_core_web_sm
+# Download spaCy model
+pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
 
-# Start the server
-uvicorn main:app --reload --port 8000
+# Start the server (from the project root, not inside backend/)
+cd ..
+uvicorn backend.main:app --reload --port 8000
 ```
-
-> **Note**: The requirements file installs Presidio directly from GitHub to support Python 3.13. If you prefer a simpler setup, use Python 3.12 and change the dependencies to `presidio-analyzer` and `presidio-anonymizer` from PyPI.
 
 ### 2. Frontend
 
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
-
-# Start the development server
 npm run dev
 ```
 
-The frontend will be available at **http://localhost:5173**.
+The frontend will be available at **http://localhost:5173**, with API requests proxied to `localhost:8000`.
 
 ---
 
-## How to Test
+## Deployment (Hugging Face Spaces)
 
-1. Open **http://localhost:5173** in your browser.
-2. You will see a sample document pre-filled in the text area: "My email is john.doe@example.com and my phone is 555-123-4567. Also, my name is John Doe."
-3. Click the **Anonymize** button (or edit the text and click again).
-4. The document is rendered below as interactive tokens:
-   - Red background = **REDACTED**
-   - Green background = **KEPT VISIBLE**
-5. Click any token. The **Inspector Panel** on the right shows the entity type, confidence score, reason, and context tokens.
-6. Use the **Unredact / Redact** button to manually override the decision.
+This repository is configured for automatic deployment to Hugging Face Spaces via GitHub Actions. The workflow pushes the code to the Space, which builds the Docker image and serves the app on port `7860`.
 
-You can paste any text. The system will automatically detect names, emails, phone numbers, and other PII.
+The Space is live at: [https://Sanjjiiev-glassbox.hf.space](https://Sanjjiiev-glassbox.hf.space)
+
+To deploy your own copy:
+
+1. Create a Space with **Docker** SDK.
+2. Add your `HF_TOKEN` as a secret in GitHub Actions.
+3. Update the `repo` name in the workflow and push.
+
+---
+
+## How to Use
+
+1. **Open the app** – either locally or at the live URL.
+2. **Paste text** or **upload a file** (.txt, .docx, .pdf).
+3. **View the redacted document** – tokens are colour‑coded:
+   - **REDACTED** – sensitive information removed.
+   - **KEPT_VISIBLE** – safe text.
+4. **Click any token** – the Inspector Panel on the right shows:
+   - Entity type (e.g., `EMAIL_ADDRESS`)
+   - Confidence score (with colour indicator)
+   - Explanation (why it was redacted or kept)
+   - Context tokens (if available)
+5. **Toggle a decision** – use the **Unredact / Redact** button to override.
+6. **Download the redacted file** – click the **Download** button to get a redacted version in the original format (PDF, DOCX, or TXT). Your manual overrides are applied to the downloaded file.
+7. **Copy redacted text** – use the **Copy** button to copy the redacted version to your clipboard.
+8. **Filter by entity type** – use the filter pills above the document viewer to focus on a specific PII category.
 
 ---
 
 ## API Endpoints
 
-| Method   | Endpoint              | Description                                                                                            |
-| -------- | --------------------- | ------------------------------------------------------------------------------------------------------ |
-| `POST` | `/api/v1/anonymize` | Accepts`{"text": "..."}` and returns an `AnonymizeResponse` with `sanitized_text` and `spans`. |
-| `GET`  | `/api/v1/health`    | Returns`{"status": "ok"}` for health checks.                                                         |
+| Method   | Endpoint                     | Description                                                                                         |
+| -------- | ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| `POST` | `/api/v1/anonymize`        | Accepts`{"text": "..."}` and returns `AnonymizeResponse` with `sanitized_text` and `spans`. |
+| `POST` | `/api/v1/redact-pdf`       | Upload a PDF, optionally with`overrides` JSON, returns a redacted PDF.                            |
+| `POST` | `/api/v1/redact-docx`      | Upload a DOCX, optionally with`overrides` JSON, returns a redacted DOCX.                          |
+| `POST` | `/api/v1/extract-pdf-text` | Upload a PDF, returns extracted text (used by frontend for preview).                                |
+| `GET`  | `/api/v1/health`           | Health check.                                                                                       |
 
-### Example Request
+**Example `POST /api/v1/anonymize` request:**
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/anonymize \
@@ -160,7 +187,7 @@ curl -X POST http://localhost:8000/api/v1/anonymize \
   -d '{"text":"My phone is 555-1234"}'
 ```
 
-### Response Structure
+**Response:**
 
 ```json
 {
@@ -190,57 +217,64 @@ curl -X POST http://localhost:8000/api/v1/anonymize \
 
 ---
 
-## Configuration
-
-You can tweak the detection threshold by editing `CONFIDENCE_THRESHOLD` in `backend/service.py` (default `0.5`). Higher values make the tool more conservative and keep more text visible.
-
----
-
 ## Architecture Deep Dive
 
-1. **User submits text** – the frontend sends it to the backend through a `POST` request.
-2. **PII detection** – Microsoft Presidio analyzes the text using regex, checksum-like checks, and spaCy NER.
-3. **Anonymization** – all detected entities with confidence greater than or equal to the threshold are replaced with `[REDACTED]`.
-4. **Span generation** – the backend builds a list of `EntityExplanation` objects that cover the entire document, each with:
-   - The actual text segment
-   - Entity type such as `PERSON`, `PHONE_NUMBER`, or `SAFE_TEXT`
-   - Decision (`REDACTED` or `KEPT_VISIBLE`)
+1. **User submits text or file** – the frontend sends it to the backend (text as JSON, files as multipart form data).
+2. **Text extraction** – for PDF/DOCX, the backend extracts plain text using `PyMuPDF` or `python-docx`.
+3. **PII detection** – Microsoft Presidio analyses the text using regex, checksums, and spaCy NER.
+4. **Anonymization** – detected entities with confidence ≥ `CONFIDENCE_THRESHOLD` are replaced with `[REDACTED]`. Overrides are applied if provided.
+5. **Span generation** – the backend builds a list of `EntityExplanation` objects covering the entire document, each with:
+   - Text segment
+   - Entity type or `SAFE_TEXT`
+   - Action (`REDACTED` / `KEPT_VISIBLE`)
    - Confidence score
-   - Human-readable reason
-   - Surrounding context tokens for transparency
-5. **Response** – the client receives only the redacted text and the span metadata, never the original raw text.
-6. **Rendering** – the React app renders each span as a clickable element.
-7. **Inspector** – clicking a span displays its metadata in a side panel.
-8. **Overrides** – the user can toggle a decision locally; this does not affect the server, but it could be extended to persist changes.
+   - Human‑readable reason
+   - Context tokens (surrounding words)
+6. **Response** – client receives only the redacted text and span metadata (never the original raw text).
+7. **Rendering** – React renders each span as a clickable element with colour coding.
+8. **Inspector** – clicking a span shows detailed metadata in a side panel.
+9. **Overrides** – user toggles are stored in React state and reflected in the preview and downloads.
+10. **Download** – for PDF/DOCX, the backend re‑redacts the original file using the same detection and overrides, producing a permanent redacted file.
 
 ---
 
-## Contributing
+## What We Chose NOT to Build (Tradeoffs)
 
-This is a hackathon project, but feel free to fork and extend it. Some ideas include:
-
-- Add multi-document batch processing.
-- Persist user overrides with a simple database.
-- Integrate a cloud LLM for more flexible detection.
+- **Batch processing** – not needed for the trust use case; Marcus wants to understand one document deeply.
+- **User accounts / persistence** – the core value is the interactive transparency, not long‑term storage.
+- **Custom rule creation** – Presidio’s built‑in detectors are sufficient; building a rule editor would distract from explainability.
+- **OCR for scanned PDFs** – would add heavy dependencies; we alert users to use text‑based files.
+- **Perfect PDF bounding‑box redaction** – we use search‑and‑replace with redaction annotations, which is effective for most use cases but may miss split‑line entities; acceptable for the hackathon.
+- **Full DOCX formatting preservation** – we preserve bold/italic/underline but not all styles; sufficient for redaction.
+- **Context token extraction** – we left it as an empty list for simplicity, but the architecture supports it.
 
 ---
 
-## License
+## Configuration
 
-MIT – use freely for educational and hackathon purposes.
+- `CONFIDENCE_THRESHOLD` in `service.py` – default `0.5`. Increase to be more conservative (fewer redactions).
+- `ENVIRONMENT=production` – serves the static frontend from `/app/frontend/dist` (set in Dockerfile).
 
 ---
 
 ## Troubleshooting
 
-| Issue                                   | Solution                                                                                               |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **ModuleNotFoundError: presidio** | Ensure you installed Presidio from GitHub as shown in the setup steps. Try Python 3.12 if builds fail. |
-| **spaCy model missing**           | Run`python -m spacy download en_core_web_sm` again.                                                  |
-| **Frontend PostCSS error**        | Make sure`postcss.config.js` uses ES module syntax with `export default`.                          |
-| **CORS error**                    | Check that the backend allows`http://localhost:5173` in `main.py`.                                 |
-| **Port 8000 already in use**      | Change the port with`--port 8001` and update the Vite proxy settings if needed.                      |
+| Issue                                             | Solution                                                                                                                                   |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **ModuleNotFoundError** for backend modules | Ensure`backend/__init__.py` exists and all imports are relative (e.g., `from .service import ...`).                                    |
+| **spaCy model not found**                   | Run`pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl`. |
+| **PDF text extraction fails**               | Make sure the PDF is text‑based (not scanned). The backend will return an error.                                                          |
+| **CORS errors**                             | Check`ALLOWED_ORIGINS` in `main.py`; add your frontend origin.                                                                         |
+| **Port conflicts**                          | Change the backend port and update the Vite proxy accordingly.                                                                             |
 
 ---
 
-*Built with care for the Sprintfour Hackathon 2026*
+## License
+
+MIT – free to use for educational and hackathon purposes.
+
+---
+
+*Built with care for the Sprintfour Hackathon 2026 – making anonymisation transparent, trustworthy, and user‑friendly.*
+
+
