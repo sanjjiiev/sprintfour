@@ -1,4 +1,7 @@
-```markdown
+---
+
+
+
 # Glassbox – Trust & Explainability for Document Anonymization
 
 **Sprintfour Hackathon 2026 – Submission for Problem 1 (Marcus)**
@@ -34,12 +37,12 @@ Glassbox answers these questions with a clickable document viewer, an inspector 
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| **Backend** | Python 3.13, FastAPI, Uvicorn |
+| Layer                   | Technology                                             |
+| ----------------------- | ------------------------------------------------------ |
+| **Backend**       | Python 3.13, FastAPI, Uvicorn                          |
 | **PII Detection** | Microsoft Presidio (Analyzer + Anonymizer) + spaCy NLP |
-| **Frontend** | React 18, Vite, Tailwind CSS |
-| **Communication** | REST API (JSON), CORS for local development |
+| **Frontend**      | React 18, Vite, Tailwind CSS                           |
+| **Communication** | REST API (JSON), CORS for local development            |
 
 ---
 
@@ -71,7 +74,7 @@ glassbox/
 └── .gitignore
 ```
 
----
+
 
 ## Setup & Run Locally
 
@@ -139,10 +142,10 @@ You can paste any text. The system will automatically detect names, emails, phon
 
 ## API Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/v1/anonymize` | Accepts `{"text": "..."}` and returns an `AnonymizeResponse` with `sanitized_text` and `spans`. |
-| `GET` | `/api/v1/health` | Returns `{"status": "ok"}` for health checks. |
+| Method   | Endpoint              | Description                                                                                            |
+| -------- | --------------------- | ------------------------------------------------------------------------------------------------------ |
+| `POST` | `/api/v1/anonymize` | Accepts`{"text": "..."}` and returns an `AnonymizeResponse` with `sanitized_text` and `spans`. |
+| `GET`  | `/api/v1/health`    | Returns`{"status": "ok"}` for health checks.                                                         |
 
 ### Example Request
 
@@ -225,15 +228,14 @@ MIT – use freely for educational and hackathon purposes.
 
 ## Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
+| Issue                                   | Solution                                                                                               |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | **ModuleNotFoundError: presidio** | Ensure you installed Presidio from GitHub as shown in the setup steps. Try Python 3.12 if builds fail. |
-| **spaCy model missing** | Run `python -m spacy download en_core_web_sm` again. |
-| **Frontend PostCSS error** | Make sure `postcss.config.js` uses ES module syntax with `export default`. |
-| **CORS error** | Check that the backend allows `http://localhost:5173` in `main.py`. |
-| **Port 8000 already in use** | Change the port with `--port 8001` and update the Vite proxy settings if needed. |
+| **spaCy model missing**           | Run`python -m spacy download en_core_web_sm` again.                                                  |
+| **Frontend PostCSS error**        | Make sure`postcss.config.js` uses ES module syntax with `export default`.                          |
+| **CORS error**                    | Check that the backend allows`http://localhost:5173` in `main.py`.                                 |
+| **Port 8000 already in use**      | Change the port with`--port 8001` and update the Vite proxy settings if needed.                      |
 
 ---
 
 *Built with care for the Sprintfour Hackathon 2026*
-
