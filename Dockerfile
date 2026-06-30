@@ -1,7 +1,7 @@
-# Use an official Python runtime as base
+# ------ Backend stage ------
 FROM python:3.11-slim AS backend
 
-# Install system dependencies for PyMuPDF (fitz) and other native libs
+# Install system dependencies (libgl1 is available, libgl1-mesa-glx is not)
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
@@ -9,34 +9,29 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
 WORKDIR /app
 
-# Copy backend requirements and install
+# Copy requirements and install all Python packages (including spaCy model)
 COPY backend/requirements.txt /app/backend/
 RUN pip install --upgrade pip setuptools wheel && \
     pip install -r /app/backend/requirements.txt
 
-# Install spaCy model via pip (avoids the download command bug)
-RUN pip install en-core-web-sm
-
 # Copy the rest of the backend code
 COPY backend/ /app/backend/
 
-# ----- Build frontend -----
+# ------ Frontend builder stage ------
 FROM node:22-slim AS frontend-builder
 
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm install
 COPY frontend/ ./
-# Build the React app
 RUN npm run build
 
-# ----- Final image -----
+# ------ Final image ------
 FROM python:3.11-slim
 
-# Install runtime dependencies (no build tools)
+# Runtime dependencies (lighter)
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
@@ -52,7 +47,7 @@ COPY --from=backend /usr/local/bin /usr/local/bin
 # Copy the built frontend from the builder stage
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
-# Set environment variables
+# Environment variables
 ENV PYTHONUNBUFFERED=1
 ENV ENVIRONMENT=production
 
