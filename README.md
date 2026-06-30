@@ -16,7 +16,7 @@ pinned: false
 
 Glassbox is a full-stack document anonymization tool that **redacts PII** from text, PDF, and DOCX files, and **explains every decision** – why a piece was hidden and why another was left visible. It is designed to build trust with sceptical users like Marcus, while also giving fast reviewers like Sam a clear correction workflow to catch false positives and missed sensitive content.
 
-Live Demo: [https://Sanjjiiev-glassbox.hf.space](https://Sanjjiiev-glassbox.hf.space)
+Live Demo: [https://Sanjjiiev-glassbox.hf.space](https://huggingface.co/spaces/Sanjjiiev/glassbox)
 
 ---
 
