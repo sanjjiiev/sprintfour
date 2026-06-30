@@ -93,6 +93,32 @@ LLMs excel at **contextual understanding** of novel or implicit PII (e.g., redac
 
 ---
 
+## Security Features
+
+Glassbox is designed with a defense-in-depth security model to ensure sensitive data is never leaked, exposed, or un-redacted in transit or storage.
+
+### 1. Zero-Data Retention & Local Processing
+- **No Database or Storage**: Glassbox does not run a database, cache, or long-term file storage. The raw text and uploaded documents are parsed, processed in-memory, and returned to the client immediately.
+- **Local Sandbox Execution**: Since the application uses Microsoft Presidio and spaCy, all PII detection, analysis, and redaction are performed locally within the backend server boundaries. No data is sent to external APIs or cloud services.
+
+### 2. Permanent PDF Redaction (Not Just Visual Cover)
+- **True Content Deletion**: Drawing black rectangles over text inside a PDF is insecure because the underlying raw characters remain selectable, searchable, and copyable. Glassbox uses PyMuPDF's (`fitz`) programmatic annotation and redaction engine:
+  - `add_redact_annot()` identifies the physical bounding boxes of PII text.
+  - `apply_redactions()` permanently deletes the text characters, images, and graphics coordinates from the PDF stream.
+  - `doc.save(garbage=4, deflate=True)` scrubs the PDF metadata, structural tables, and references, ensuring the redacted contents are completely unrecoverable.
+
+### 3. XML-Level DOCX Redaction
+- **Literal Text Replacement**: DOCX files are zip archives containing raw XML files. Simply styling text with black highlights leaves the source words fully readable. Glassbox parses the document runs, completely removes the target text strings, replaces them with the string `"[REDACTED]"`, and styles the text run in white font with black highlight. The original text is completely expunged from the underlying XML structure.
+
+### 4. Zero-Leakage Client Payload
+- **Sanitized-Only Transmission**: The original raw text is never sent back to the frontend in the API response. The frontend only receives the redacted text and metadata coordinates (the span offsets, entity categories, and confidence scores).
+- **Secure File Uploads**: Uploaded files are streamed directly into memory buffer bytes, avoiding any temporary file generation on the disk that could be read by other processes.
+
+### 5. Deterministic Defense Against Prompt Injections
+- **No LLM Vulnerabilities**: Because Glassbox does not rely on LLMs, it is completely immune to prompt injection attacks, system prompt leaks, or jailbreaking attempts that trick the detector into bypassing or revealing PII.
+
+---
+
 
 ```text
 glassbox/
