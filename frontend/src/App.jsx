@@ -16,7 +16,9 @@ function App() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadedFileType, setUploadedFileType] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [filterType, setFilterType] = useState(null); // null = show all
 
+  // Helper
   const getSpanAction = useCallback((spanId) => {
     const span = spans.find((s) => s.id === spanId);
     if (!span) return null;
@@ -24,6 +26,7 @@ function App() {
     return span.action;
   }, [spans, overrides]);
 
+  // Current redacted text (with overrides)
   const currentRedactedText = useMemo(() => {
     if (!spans.length) return '';
     return spans.map(span => {
@@ -33,6 +36,38 @@ function App() {
     }).join('');
   }, [spans, overrides, getSpanAction]);
 
+  // Summary statistics
+  const summary = useMemo(() => {
+    if (!spans.length) return null;
+    let redacted = 0, visible = 0, overridden = 0, totalConfidence = 0;
+    spans.forEach(span => {
+      const action = getSpanAction(span.id);
+      if (action === 'REDACTED') redacted++;
+      else visible++;
+      if (overrides[span.id]) overridden++;
+      totalConfidence += span.confidence;
+    });
+    return {
+      total: spans.length,
+      redacted,
+      visible,
+      overridden,
+      avgConfidence: (totalConfidence / spans.length) || 0
+    };
+  }, [spans, overrides, getSpanAction]);
+
+  // Get unique entity types for filter
+  const entityTypes = useMemo(() => {
+    const types = new Set();
+    spans.forEach(span => {
+      if (span.entity_type && span.entity_type !== 'SAFE_TEXT') {
+        types.add(span.entity_type);
+      }
+    });
+    return Array.from(types).sort();
+  }, [spans]);
+
+  // Auto-anonymize on text change
   useEffect(() => {
     if (!documentText.trim()) return;
     fetch('/api/v1/anonymize', {
@@ -45,10 +80,12 @@ function App() {
         setSpans(data.spans);
         setSanitized(data.sanitized_text);
         setOverrides({});
+        setFilterType(null); // reset filter on new doc
       })
       .catch(console.error);
   }, [documentText]);
 
+  // Handlers
   const handleSpanClick = (spanId) => setSelectedSpanId(spanId);
 
   const toggleOverride = (spanId) => {
@@ -187,6 +224,27 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  // --- Copy Redacted ---
+  const copyRedactedText = async () => {
+    if (!currentRedactedText) {
+      alert('No redacted text available.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(currentRedactedText);
+      alert('✅ Redacted text copied to clipboard!');
+    } catch (err) {
+      // Fallback
+      const textarea = document.createElement('textarea');
+      textarea.value = currentRedactedText;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      alert('✅ Redacted text copied to clipboard!');
+    }
+  };
+
   // Drag & drop handlers
   const handleDrop = (e) => {
     e.preventDefault();
@@ -223,7 +281,7 @@ function App() {
                 </>
               ) : (
                 <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                   </svg>
                   Upload
@@ -246,7 +304,7 @@ function App() {
               className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg transition duration-200 shadow-md hover:shadow-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={!spans.length}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
               </svg>
               Download
@@ -255,11 +313,9 @@ function App() {
         </div>
       </header>
 
-      {/* Main Content */}
       <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 flex flex-col lg:flex-row gap-6">
-        {/* Left Panel */}
         <div className="flex-1 flex flex-col gap-4">
-          {/* Upload / Paste Area */}
+          {/* Upload / Paste */}
           <div
             className={`bg-white rounded-xl shadow-lg p-4 transition-all duration-200 ${isDragging ? 'ring-4 ring-blue-400 ring-opacity-50 border-blue-400' : 'border border-gray-200'}`}
             onDrop={handleDrop}
@@ -273,7 +329,7 @@ function App() {
               onChange={(e) => setDocumentText(e.target.value)}
               placeholder="Paste your document here, or drag & drop a file..."
             />
-            <div className="flex justify-between items-center mt-2 text-xs text-gray-400">
+            <div className="flex justify-between items-center mt-2 text-xs text-gray-400 flex-wrap gap-2">
               <span>Supports .txt, .docx, .pdf (text‑based)</span>
               {uploadedFile && (
                 <span className="text-green-600 font-medium flex items-center gap-1">
@@ -294,6 +350,88 @@ function App() {
             </div>
           </div>
 
+          {/* Risk Summary + Copy + Filter */}
+          {summary && (
+            <div className="bg-white rounded-xl shadow-lg p-4 flex flex-wrap items-center justify-between gap-3 border border-gray-100">
+              <div className="flex items-center gap-6 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">Total</span>
+                  <span className="font-semibold text-gray-800">{summary.total}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-red-500"></span>
+                  <span className="text-sm text-gray-500">Redacted</span>
+                  <span className="font-semibold text-gray-800">{summary.redacted}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-green-500"></span>
+                  <span className="text-sm text-gray-500">Visible</span>
+                  <span className="font-semibold text-gray-800">{summary.visible}</span>
+                </div>
+                {summary.overridden > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-amber-400"></span>
+                    <span className="text-sm text-gray-500">Overrides</span>
+                    <span className="font-semibold text-amber-600">{summary.overridden}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">Avg confidence</span>
+                  <span className="font-semibold text-gray-800">{(summary.avgConfidence * 100).toFixed(0)}%</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={copyRedactedText}
+                  className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-4 py-1.5 rounded-lg transition text-sm font-medium flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                  </svg>
+                  Copy Redacted
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Entity Type Filter Pills */}
+          {entityTypes.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-gray-500 mr-1">Filter:</span>
+              <button
+                className={`px-3 py-1 rounded-full text-xs font-medium transition ${
+                  filterType === null
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+                onClick={() => setFilterType(null)}
+              >
+                All
+              </button>
+              {entityTypes.map(type => (
+                <button
+                  key={type}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition ${
+                    filterType === type
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                  onClick={() => setFilterType(type)}
+                >
+                  {type}
+                </button>
+              ))}
+              {filterType !== null && (
+                <button
+                  className="text-xs text-gray-400 hover:text-gray-600 ml-1"
+                  onClick={() => setFilterType(null)}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Document Viewer */}
           <div className="bg-white rounded-xl shadow-lg p-6 flex-1 overflow-y-auto min-h-[300px]">
             <DocumentViewer
@@ -301,6 +439,7 @@ function App() {
               getSpanAction={getSpanAction}
               onSpanClick={handleSpanClick}
               selectedSpanId={selectedSpanId}
+              filterType={filterType}
             />
             {!spans.length && (
               <div className="flex items-center justify-center h-full text-gray-400 text-center">

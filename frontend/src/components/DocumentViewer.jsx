@@ -1,11 +1,23 @@
 import React from 'react';
 
-function DocumentViewer({ spans, getSpanAction, onSpanClick, selectedSpanId }) {
-  if (!spans.length) return <p>No document loaded.</p>;
+function DocumentViewer({ spans, getSpanAction, onSpanClick, selectedSpanId, filterType }) {
+  if (!spans.length) return null;
+
+  const filteredSpans = filterType
+    ? spans.filter(span => span.entity_type === filterType)
+    : spans;
+
+  if (filteredSpans.length === 0) {
+    return (
+      <div className="text-center text-gray-400 py-8">
+        No spans of type <strong>{filterType}</strong> found.
+      </div>
+    );
+  }
 
   return (
     <div className="prose max-w-none">
-      {spans.map((span) => {
+      {filteredSpans.map((span) => {
         const action = getSpanAction(span.id);
         const isSelected = span.id === selectedSpanId;
         const baseClass =
