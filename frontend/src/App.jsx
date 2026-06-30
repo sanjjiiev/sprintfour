@@ -14,6 +14,11 @@ function App() {
   const [overrides, setOverrides] = useState({});
   const [isUploading, setIsUploading] = useState(false);
 
+  // For format‑preserving download
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [uploadedFileType, setUploadedFileType] = useState('');
+
+  // Auto-anonymize whenever documentText changes
   useEffect(() => {
     if (!documentText.trim()) return;
     fetch('/api/v1/anonymize', {
@@ -49,7 +54,7 @@ function App() {
 
   const selectedSpan = spans.find((s) => s.id === selectedSpanId);
 
-  // --- File Upload Handlers ---
+  // --- File Upload ---
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -57,45 +62,125 @@ function App() {
 
     try {
       let extractedText = '';
-      const reader = new FileReader();
+      let fileType = '';
 
-      if (file.type === 'application/pdf') {
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        fileType = 'pdf';
         const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfParse(arrayBuffer);
-        extractedText = pdf.text;
-      } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.endsWith('.docx')) {
+        try {
+          const pdf = await pdfParse(arrayBuffer);
+          extractedText = pdf.text;
+          if (!extractedText.trim()) {
+            alert('This PDF appears to be scanned or image‑based. Please use a text‑based PDF, .docx, or .txt.');
+            setIsUploading(false);
+            e.target.value = '';
+            return;
+          }
+        } catch (pdfError) {
+          alert('Failed to parse PDF. Please ensure it is a text‑based PDF.');
+          console.error(pdfError);
+          setIsUploading(false);
+          e.target.value = '';
+          return;
+        }
+      } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.toLowerCase().endsWith('.docx')) {
+        fileType = 'docx';
         const arrayBuffer = await file.arrayBuffer();
         const result = await mammoth.extractRawText({ arrayBuffer });
         extractedText = result.value;
-      } else if (file.type === 'text/plain') {
+      } else if (file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt')) {
+        fileType = 'txt';
         const text = await file.text();
         extractedText = text;
       } else {
         alert('Unsupported file type. Please upload .txt, .docx, or .pdf');
         setIsUploading(false);
+        e.target.value = '';
         return;
       }
 
+      // Show the extracted text preview
       setDocumentText(extractedText);
+
+      // Store the file and its type for later download (only for PDF/DOCX)
+      if (fileType === 'pdf' || fileType === 'docx') {
+        setUploadedFile(file);
+        setUploadedFileType(fileType);
+      } else {
+        // For text, clear stored file so download uses text version
+        setUploadedFile(null);
+        setUploadedFileType('');
+      }
+
     } catch (error) {
       console.error('Error extracting text:', error);
       alert('Failed to extract text from file.');
     } finally {
       setIsUploading(false);
-      e.target.value = ''; // reset input
+      e.target.value = '';
     }
+  };
+
+  // --- Download Redacted ---
+  const downloadRedacted = async () => {
+    // If we have a stored PDF or DOCX file, download the redacted version in that format
+    if (uploadedFile && (uploadedFileType === 'pdf' || uploadedFileType === 'docx')) {
+      const endpoint = uploadedFileType === 'pdf' ? '/api/v1/redact-pdf' : '/api/v1/redact-docx';
+      const formData = new FormData();
+      formData.append('file', uploadedFile);
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          body: formData,
+        });
+        if (!response.ok) {
+          const errText = await response.text();
+          alert(`Redaction failed: ${errText}`);
+          return;
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `redacted.${uploadedFileType}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error('Download error:', error);
+        alert('Failed to download redacted file.');
+      }
+      return;
+    }
+
+    // Otherwise, fallback to text download (for pasted text or .txt files)
+    if (!sanitized) {
+      alert('No redacted document available. Please anonymize a document first.');
+      return;
+    }
+    const blob = new Blob([sanitized], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'redacted_document.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      <header className="p-4 bg-white shadow-md flex justify-between items-center">
+      <header className="p-4 bg-white shadow-md flex justify-between items-center flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-blue-700">Glassbox</h1>
           <p className="text-gray-600">Trust through transparency</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <label className="cursor-pointer bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
-            {isUploading ? 'Uploading...' : 'Upload Document'}
+            {isUploading ? 'Uploading...' : '📄 Upload Document'}
             <input
               type="file"
               accept=".txt,.docx,.pdf"
@@ -104,7 +189,13 @@ function App() {
               disabled={isUploading}
             />
           </label>
-          <span className="text-sm text-gray-500">.txt .docx .pdf</span>
+          <button
+            onClick={downloadRedacted}
+            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+            disabled={!sanitized}
+          >
+            ⬇️ Download Redacted
+          </button>
         </div>
       </header>
 
@@ -124,11 +215,16 @@ function App() {
               rows={4}
               value={documentText}
               onChange={(e) => setDocumentText(e.target.value)}
-              placeholder="Paste your document here..."
+              placeholder="Paste your document here, or upload a file for preview..."
             />
             <p className="text-xs text-gray-500 mt-1">
-              Or upload a file (.txt, .docx, .pdf) – text will be extracted automatically.
+              Upload .txt, .docx, or text‑based .pdf – you'll see a redacted preview and can download the redacted file.
             </p>
+            {uploadedFile && (
+              <p className="text-sm text-green-600 mt-1">
+                ✓ File ready for download: <strong>{uploadedFile.name}</strong> (redacted version)
+              </p>
+            )}
           </div>
         </div>
         <div className="w-80 bg-gray-100 border-l overflow-y-auto p-4">
