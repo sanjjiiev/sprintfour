@@ -2,7 +2,7 @@ import uuid
 from typing import List
 from presidio_analyzer import AnalyzerEngine, RecognizerResult
 from presidio_anonymizer import AnonymizerEngine
-from models import EntityExplanation, AnonymizeResponse
+from .models import EntityExplanation, AnonymizeResponse
 
 analyzer = AnalyzerEngine()
 anonymizer = AnonymizerEngine()
