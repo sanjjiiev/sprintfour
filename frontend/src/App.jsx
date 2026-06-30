@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import DocumentViewer from './components/DocumentViewer';
 import InspectorPanel from './components/InspectorPanel';
 import mammoth from 'mammoth';
-import pdfParse from 'pdf-parse';
 
 function App() {
   const [documentText, setDocumentText] = useState(
@@ -16,7 +15,7 @@ function App() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadedFileType, setUploadedFileType] = useState('');
   const [isDragging, setIsDragging] = useState(false);
-  const [filterType, setFilterType] = useState(null); // null = show all
+  const [filterType, setFilterType] = useState(null);
 
   // Helper
   const getSpanAction = useCallback((spanId) => {
@@ -80,7 +79,7 @@ function App() {
         setSpans(data.spans);
         setSanitized(data.sanitized_text);
         setOverrides({});
-        setFilterType(null); // reset filter on new doc
+        setFilterType(null);
       })
       .catch(console.error);
   }, [documentText]);
@@ -108,28 +107,20 @@ function App() {
 
       if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
         fileType = 'pdf';
-        let arrayBuffer = await file.arrayBuffer();
-        try {
-          const pdf = await pdfParse(arrayBuffer);
-          extractedText = pdf.text;
-          if (!extractedText.trim()) throw new Error('Empty text');
-        } catch (pdfError) {
-          console.warn('pdf-parse failed, trying backend extraction...', pdfError);
-          const formData = new FormData();
-          const fileBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
-          formData.append('file', fileBlob, file.name);
-          const response = await fetch('/api/v1/extract-pdf-text', {
-            method: 'POST',
-            body: formData,
-          });
-          if (!response.ok) {
-            const errText = await response.text();
-            throw new Error(`Backend extraction failed: ${errText}`);
-          }
-          const data = await response.json();
-          extractedText = data.text;
-          if (!extractedText.trim()) throw new Error('Backend returned empty text');
+        // Use backend extraction (no frontend pdf‑parse)
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await fetch('/api/v1/extract-pdf-text', {
+          method: 'POST',
+          body: formData,
+        });
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Backend extraction failed: ${errText}`);
         }
+        const data = await response.json();
+        extractedText = data.text;
+        if (!extractedText.trim()) throw new Error('Backend returned empty text');
       } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.toLowerCase().endsWith('.docx')) {
         fileType = 'docx';
         const arrayBuffer = await file.arrayBuffer();
@@ -209,6 +200,7 @@ function App() {
       return;
     }
 
+    // For text content (pasted or .txt)
     if (!currentRedactedText) {
       alert('No redacted document available.');
       return;
@@ -234,7 +226,6 @@ function App() {
       await navigator.clipboard.writeText(currentRedactedText);
       alert('✅ Redacted text copied to clipboard!');
     } catch (err) {
-      // Fallback
       const textarea = document.createElement('textarea');
       textarea.value = currentRedactedText;
       document.body.appendChild(textarea);
@@ -260,7 +251,6 @@ function App() {
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* Header */}
       <header className="bg-white shadow-lg border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center flex-wrap gap-4">
           <div>
