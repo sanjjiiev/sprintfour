@@ -12,10 +12,24 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Deploy to Space
-        uses: huggingface/hub-action@main   # ✅ use 'main' instead of 'v1'
-        with:
-          token: ${{ secrets.HF_TOKEN }}
-          repo: Sanjjiiev/glassbox          # your Space name
-          files: .                          # copy everything from repo root
-          git_user: github-actions
-          git_email: actions@github.com
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          # Clone your Space repository using the token
+          git clone https://Sanjjiiev:${HF_TOKEN}@huggingface.co/spaces/Sanjjiiev/glassbox space
+          
+          # Copy all files from the current repo to the Space folder,
+          # excluding unnecessary folders
+          rsync -av --exclude='.git' --exclude='venv' --exclude='node_modules' --exclude='.env' . space/
+          
+          # Commit and push if there are changes
+          cd space
+          git config user.email "github-actions@github.com"
+          git config user.name "github-actions"
+          git add .
+          if ! git diff --staged --quiet; then
+            git commit -m "Deploy from GitHub Actions (commit ${{ github.sha }})"
+            git push
+          else
+            echo "No changes to commit."
+          fi
