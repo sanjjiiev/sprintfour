@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import DocumentViewer from './components/DocumentViewer';
 import InspectorPanel from './components/InspectorPanel';
 import mammoth from 'mammoth';
-import * as pdfParse from 'pdf-parse';
+import pdfParse from 'pdf-parse';
 
 function App() {
   const [documentText, setDocumentText] = useState(
