@@ -145,7 +145,7 @@ The frontend will be available at **http://localhost:5173**, with API requests p
 
 This repository is configured for automatic deployment to Hugging Face Spaces via GitHub Actions. The workflow pushes the code to the Space, which builds the Docker image and serves the app on port `7860`.
 
-The Space is live at: [https://Sanjjiiev-glassbox.hf.space](https://Sanjjiiev-glassbox.hf.space)
+The Space is live at: [https://Sanjjiiev-glassbox.hf.space](https://huggingface.co/spaces/Sanjjiiev/glassbox)
 
 To deploy your own copy:
 
