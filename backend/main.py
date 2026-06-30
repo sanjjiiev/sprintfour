@@ -1,11 +1,12 @@
-from fastapi import FastAPI, HTTPException, File, UploadFile, Response
+from fastapi import FastAPI, HTTPException, File, UploadFile, Response, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from service import process_document
 from models import AnonymizeResponse
 from file_service import redact_pdf, redact_docx
 import traceback
-import fitz  # PyMuPDF
+import fitz
+import json
 
 app = FastAPI(title="Glassbox API", version="1.0")
 app.add_middleware(
@@ -36,20 +37,28 @@ async def health():
     return {"status": "ok"}
 
 @app.post("/api/v1/redact-pdf")
-async def redact_pdf_endpoint(file: UploadFile = File(...)):
+async def redact_pdf_endpoint(
+    file: UploadFile = File(...),
+    overrides: str = Form(None)  # JSON string
+):
     try:
         pdf_bytes = await file.read()
-        redacted = redact_pdf(pdf_bytes)
+        overrides_dict = json.loads(overrides) if overrides else {}
+        redacted = redact_pdf(pdf_bytes, overrides_dict)
         return Response(content=redacted, media_type="application/pdf",
                         headers={"Content-Disposition": "attachment; filename=redacted.pdf"})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/redact-docx")
-async def redact_docx_endpoint(file: UploadFile = File(...)):
+async def redact_docx_endpoint(
+    file: UploadFile = File(...),
+    overrides: str = Form(None)  # JSON string
+):
     try:
         docx_bytes = await file.read()
-        redacted = redact_docx(docx_bytes)
+        overrides_dict = json.loads(overrides) if overrides else {}
+        redacted = redact_docx(docx_bytes, overrides_dict)
         return Response(content=redacted,
                         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                         headers={"Content-Disposition": "attachment; filename=redacted.docx"})
@@ -58,7 +67,6 @@ async def redact_docx_endpoint(file: UploadFile = File(...)):
 
 @app.post("/api/v1/extract-pdf-text", response_model=ExtractTextResponse)
 async def extract_pdf_text(file: UploadFile = File(...)):
-    """Extract text from PDF using PyMuPDF – fallback for frontend."""
     try:
         pdf_bytes = await file.read()
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")

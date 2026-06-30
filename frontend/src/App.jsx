@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import DocumentViewer from './components/DocumentViewer';
 import InspectorPanel from './components/InspectorPanel';
 import mammoth from 'mammoth';
@@ -13,12 +13,28 @@ function App() {
   const [selectedSpanId, setSelectedSpanId] = useState(null);
   const [overrides, setOverrides] = useState({});
   const [isUploading, setIsUploading] = useState(false);
-
-  // For format‑preserving download
   const [uploadedFile, setUploadedFile] = useState(null);
-  const [uploadedFileType, setUploadedFileType] = useState(''); // 'pdf' or 'docx'
+  const [uploadedFileType, setUploadedFileType] = useState('');
 
-  // Auto-anonymize whenever documentText changes
+  // Helper to get action for a span
+  const getSpanAction = useCallback((spanId) => {
+    const span = spans.find((s) => s.id === spanId);
+    if (!span) return null;
+    if (overrides[spanId]) return overrides[spanId];
+    return span.action;
+  }, [spans, overrides]);
+
+  // Compute current redacted text (for text downloads)
+  const currentRedactedText = useMemo(() => {
+    if (!spans.length) return '';
+    return spans.map(span => {
+      const action = getSpanAction(span.id);
+      if (action === 'REDACTED') return '[REDACTED]';
+      return span.text_segment;
+    }).join('');
+  }, [spans, overrides, getSpanAction]);
+
+  // Auto‑anonymize on text change
   useEffect(() => {
     if (!documentText.trim()) return;
     fetch('/api/v1/anonymize', {
@@ -35,6 +51,7 @@ function App() {
       .catch(console.error);
   }, [documentText]);
 
+  // Handlers
   const handleSpanClick = (spanId) => setSelectedSpanId(spanId);
 
   const toggleOverride = (spanId) => {
@@ -43,13 +60,6 @@ function App() {
       const newAction = currentAction === 'REDACTED' ? 'KEPT_VISIBLE' : 'REDACTED';
       return { ...prev, [spanId]: newAction };
     });
-  };
-
-  const getSpanAction = (spanId) => {
-    const span = spans.find((s) => s.id === spanId);
-    if (!span) return null;
-    if (overrides[spanId]) return overrides[spanId];
-    return span.action;
   };
 
   const selectedSpan = spans.find((s) => s.id === selectedSpanId);
@@ -67,23 +77,15 @@ function App() {
       if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
         fileType = 'pdf';
         let arrayBuffer = await file.arrayBuffer();
-
-        // Try pdf-parse first (for text‑based PDFs)
         try {
           const pdf = await pdfParse(arrayBuffer);
           extractedText = pdf.text;
-          if (!extractedText.trim()) {
-            // If empty, fallback to backend extraction
-            throw new Error('Empty text from pdf-parse');
-          }
+          if (!extractedText.trim()) throw new Error('Empty text');
         } catch (pdfError) {
           console.warn('pdf-parse failed, trying backend extraction...', pdfError);
-          // Fallback: send PDF to backend for text extraction using PyMuPDF
           const formData = new FormData();
-          // Re‑construct the file as a Blob
           const fileBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
           formData.append('file', fileBlob, file.name);
-
           const response = await fetch('/api/v1/extract-pdf-text', {
             method: 'POST',
             body: formData,
@@ -94,9 +96,7 @@ function App() {
           }
           const data = await response.json();
           extractedText = data.text;
-          if (!extractedText.trim()) {
-            throw new Error('Backend returned empty text');
-          }
+          if (!extractedText.trim()) throw new Error('Backend returned empty text');
         }
       } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.toLowerCase().endsWith('.docx')) {
         fileType = 'docx';
@@ -115,25 +115,20 @@ function App() {
       }
 
       if (!extractedText.trim()) {
-        alert('No text could be extracted from the file. Please ensure it contains readable text.');
+        alert('No text could be extracted. Please use a text‑based file.');
         setIsUploading(false);
         e.target.value = '';
         return;
       }
 
-      // Show the extracted text preview
       setDocumentText(extractedText);
-
-      // Store the file and its type for later download (only for PDF/DOCX)
       if (fileType === 'pdf' || fileType === 'docx') {
         setUploadedFile(file);
         setUploadedFileType(fileType);
       } else {
-        // For text, clear stored file so download uses text version
         setUploadedFile(null);
         setUploadedFileType('');
       }
-
     } catch (error) {
       console.error('Error processing file:', error);
       alert(`Failed to process file: ${error.message || 'Unknown error'}`);
@@ -145,12 +140,26 @@ function App() {
 
   // --- Download Redacted ---
   const downloadRedacted = async () => {
-    // If we have a stored PDF or DOCX file, download the redacted version in that format
+    // If we have a stored PDF or DOCX file, download redacted version with overrides
     if (uploadedFile && (uploadedFileType === 'pdf' || uploadedFileType === 'docx')) {
-      const endpoint = uploadedFileType === 'pdf' ? '/api/v1/redact-pdf' : '/api/v1/redact-docx';
+      // Build override map: text_segment -> action
+      const overrideMap = {};
+      spans.forEach(span => {
+        if (overrides[span.id] && overrides[span.id] !== span.action) {
+          overrideMap[span.text_segment] = overrides[span.id];
+        }
+      });
+      // If no overrides, we can still proceed
       const formData = new FormData();
       formData.append('file', uploadedFile);
-
+      if (Object.keys(overrideMap).length > 0) {
+        formData.append('overrides', JSON.stringify(overrideMap));
+        // Optional: confirm with user that overrides will be applied
+        if (!window.confirm('Your manual overrides will be applied to the downloaded file. Continue?')) {
+          return;
+        }
+      }
+      const endpoint = uploadedFileType === 'pdf' ? '/api/v1/redact-pdf' : '/api/v1/redact-docx';
       try {
         const response = await fetch(endpoint, {
           method: 'POST',
@@ -177,12 +186,12 @@ function App() {
       return;
     }
 
-    // Otherwise, fallback to text download (for pasted text or .txt files)
-    if (!sanitized) {
-      alert('No redacted document available. Please anonymize a document first.');
+    // For text content (pasted or .txt), use currentRedactedText with overrides
+    if (!currentRedactedText) {
+      alert('No redacted document available.');
       return;
     }
-    const blob = new Blob([sanitized], { type: 'text/plain;charset=utf-8' });
+    const blob = new Blob([currentRedactedText], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -213,8 +222,8 @@ function App() {
           </label>
           <button
             onClick={downloadRedacted}
-            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
-            disabled={!sanitized}
+            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!spans.length}
           >
             ⬇️ Download Redacted
           </button>
@@ -237,14 +246,19 @@ function App() {
               rows={4}
               value={documentText}
               onChange={(e) => setDocumentText(e.target.value)}
-              placeholder="Paste your document here, or upload a file for preview..."
+              placeholder="Paste your document here, or upload a file..."
             />
             <p className="text-xs text-gray-500 mt-1">
-              Upload .txt, .docx, or text‑based .pdf – you'll see a redacted preview and can download the redacted file.
+              Upload .txt, .docx, or text‑based .pdf – you'll see a preview and can download the redacted file with your manual overrides applied.
             </p>
             {uploadedFile && (
               <p className="text-sm text-green-600 mt-1">
-                ✓ File ready for download: <strong>{uploadedFile.name}</strong> (redacted version)
+                ✓ File ready for download: <strong>{uploadedFile.name}</strong> (with overrides applied)
+              </p>
+            )}
+            {Object.keys(overrides).length > 0 && (
+              <p className="text-sm text-amber-600 mt-1">
+                ⚠️ Overrides will be applied to all downloads (text, DOCX, and PDF).
               </p>
             )}
           </div>
