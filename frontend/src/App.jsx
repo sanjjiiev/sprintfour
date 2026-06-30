@@ -16,7 +16,7 @@ function App() {
 
   // For format‑preserving download
   const [uploadedFile, setUploadedFile] = useState(null);
-  const [uploadedFileType, setUploadedFileType] = useState('');
+  const [uploadedFileType, setUploadedFileType] = useState(''); // 'pdf' or 'docx'
 
   // Auto-anonymize whenever documentText changes
   useEffect(() => {
@@ -66,22 +66,37 @@ function App() {
 
       if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
         fileType = 'pdf';
-        const arrayBuffer = await file.arrayBuffer();
+        let arrayBuffer = await file.arrayBuffer();
+
+        // Try pdf-parse first (for text‑based PDFs)
         try {
           const pdf = await pdfParse(arrayBuffer);
           extractedText = pdf.text;
           if (!extractedText.trim()) {
-            alert('This PDF appears to be scanned or image‑based. Please use a text‑based PDF, .docx, or .txt.');
-            setIsUploading(false);
-            e.target.value = '';
-            return;
+            // If empty, fallback to backend extraction
+            throw new Error('Empty text from pdf-parse');
           }
         } catch (pdfError) {
-          alert('Failed to parse PDF. Please ensure it is a text‑based PDF.');
-          console.error(pdfError);
-          setIsUploading(false);
-          e.target.value = '';
-          return;
+          console.warn('pdf-parse failed, trying backend extraction...', pdfError);
+          // Fallback: send PDF to backend for text extraction using PyMuPDF
+          const formData = new FormData();
+          // Re‑construct the file as a Blob
+          const fileBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
+          formData.append('file', fileBlob, file.name);
+
+          const response = await fetch('/api/v1/extract-pdf-text', {
+            method: 'POST',
+            body: formData,
+          });
+          if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Backend extraction failed: ${errText}`);
+          }
+          const data = await response.json();
+          extractedText = data.text;
+          if (!extractedText.trim()) {
+            throw new Error('Backend returned empty text');
+          }
         }
       } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.toLowerCase().endsWith('.docx')) {
         fileType = 'docx';
@@ -94,6 +109,13 @@ function App() {
         extractedText = text;
       } else {
         alert('Unsupported file type. Please upload .txt, .docx, or .pdf');
+        setIsUploading(false);
+        e.target.value = '';
+        return;
+      }
+
+      if (!extractedText.trim()) {
+        alert('No text could be extracted from the file. Please ensure it contains readable text.');
         setIsUploading(false);
         e.target.value = '';
         return;
@@ -113,8 +135,8 @@ function App() {
       }
 
     } catch (error) {
-      console.error('Error extracting text:', error);
-      alert('Failed to extract text from file.');
+      console.error('Error processing file:', error);
+      alert(`Failed to process file: ${error.message || 'Unknown error'}`);
     } finally {
       setIsUploading(false);
       e.target.value = '';
