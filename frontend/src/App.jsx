@@ -15,8 +15,8 @@ function App() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadedFileType, setUploadedFileType] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
 
-  // Helper to get action for a span
   const getSpanAction = useCallback((spanId) => {
     const span = spans.find((s) => s.id === spanId);
     if (!span) return null;
@@ -24,7 +24,6 @@ function App() {
     return span.action;
   }, [spans, overrides]);
 
-  // Compute current redacted text (for text downloads)
   const currentRedactedText = useMemo(() => {
     if (!spans.length) return '';
     return spans.map(span => {
@@ -34,7 +33,6 @@ function App() {
     }).join('');
   }, [spans, overrides, getSpanAction]);
 
-  // Auto‑anonymize on text change
   useEffect(() => {
     if (!documentText.trim()) return;
     fetch('/api/v1/anonymize', {
@@ -51,7 +49,6 @@ function App() {
       .catch(console.error);
   }, [documentText]);
 
-  // Handlers
   const handleSpanClick = (spanId) => setSelectedSpanId(spanId);
 
   const toggleOverride = (spanId) => {
@@ -65,11 +62,9 @@ function App() {
   const selectedSpan = spans.find((s) => s.id === selectedSpanId);
 
   // --- File Upload ---
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
+  const handleFileUpload = async (file) => {
     if (!file) return;
     setIsUploading(true);
-
     try {
       let extractedText = '';
       let fileType = '';
@@ -110,14 +105,12 @@ function App() {
       } else {
         alert('Unsupported file type. Please upload .txt, .docx, or .pdf');
         setIsUploading(false);
-        e.target.value = '';
         return;
       }
 
       if (!extractedText.trim()) {
         alert('No text could be extracted. Please use a text‑based file.');
         setIsUploading(false);
-        e.target.value = '';
         return;
       }
 
@@ -134,30 +127,23 @@ function App() {
       alert(`Failed to process file: ${error.message || 'Unknown error'}`);
     } finally {
       setIsUploading(false);
-      e.target.value = '';
     }
   };
 
   // --- Download Redacted ---
   const downloadRedacted = async () => {
-    // If we have a stored PDF or DOCX file, download redacted version with overrides
     if (uploadedFile && (uploadedFileType === 'pdf' || uploadedFileType === 'docx')) {
-      // Build override map: text_segment -> action
       const overrideMap = {};
       spans.forEach(span => {
         if (overrides[span.id] && overrides[span.id] !== span.action) {
           overrideMap[span.text_segment] = overrides[span.id];
         }
       });
-      // If no overrides, we can still proceed
       const formData = new FormData();
       formData.append('file', uploadedFile);
       if (Object.keys(overrideMap).length > 0) {
         formData.append('overrides', JSON.stringify(overrideMap));
-        // Optional: confirm with user that overrides will be applied
-        if (!window.confirm('Your manual overrides will be applied to the downloaded file. Continue?')) {
-          return;
-        }
+        if (!window.confirm('Your manual overrides will be applied to the downloaded file. Continue?')) return;
       }
       const endpoint = uploadedFileType === 'pdf' ? '/api/v1/redact-pdf' : '/api/v1/redact-docx';
       try {
@@ -186,7 +172,6 @@ function App() {
       return;
     }
 
-    // For text content (pasted or .txt), use currentRedactedText with overrides
     if (!currentRedactedText) {
       alert('No redacted document available.');
       return;
@@ -202,68 +187,131 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  // Drag & drop handlers
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileUpload(file);
+  };
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+  const handleDragLeave = () => setIsDragging(false);
+
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      <header className="p-4 bg-white shadow-md flex justify-between items-center flex-wrap gap-2">
-        <div>
-          <h1 className="text-2xl font-bold text-blue-700">Glassbox</h1>
-          <p className="text-gray-600">Trust through transparency</p>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <label className="cursor-pointer bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
-            {isUploading ? 'Uploading...' : '📄 Upload Document'}
-            <input
-              type="file"
-              accept=".txt,.docx,.pdf"
-              onChange={handleFileUpload}
-              className="hidden"
-              disabled={isUploading}
-            />
-          </label>
-          <button
-            onClick={downloadRedacted}
-            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={!spans.length}
-          >
-            ⬇️ Download Redacted
-          </button>
+    <div className="flex flex-col min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      {/* Header */}
+      <header className="bg-white shadow-lg border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center flex-wrap gap-4">
+          <div>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-700 to-indigo-600 bg-clip-text text-transparent">
+              Glassbox
+            </h1>
+            <p className="text-sm text-gray-500">Trust through transparency</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <label className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg transition duration-200 shadow-md hover:shadow-lg flex items-center gap-2">
+              {isUploading ? (
+                <>
+                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                  </svg>
+                  Upload
+                </>
+              )}
+              <input
+                type="file"
+                accept=".txt,.docx,.pdf"
+                onChange={(e) => {
+                  const file = e.target.files[0];
+                  if (file) handleFileUpload(file);
+                  e.target.value = '';
+                }}
+                className="hidden"
+                disabled={isUploading}
+              />
+            </label>
+            <button
+              onClick={downloadRedacted}
+              className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg transition duration-200 shadow-md hover:shadow-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!spans.length}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+              </svg>
+              Download
+            </button>
+          </div>
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 p-6 overflow-auto">
-          <div className="bg-white p-6 rounded-lg shadow-lg max-w-4xl mx-auto">
+      {/* Main Content */}
+      <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 flex flex-col lg:flex-row gap-6">
+        {/* Left Panel */}
+        <div className="flex-1 flex flex-col gap-4">
+          {/* Upload / Paste Area */}
+          <div
+            className={`bg-white rounded-xl shadow-lg p-4 transition-all duration-200 ${isDragging ? 'ring-4 ring-blue-400 ring-opacity-50 border-blue-400' : 'border border-gray-200'}`}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+          >
+            <textarea
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none text-gray-700"
+              rows={3}
+              value={documentText}
+              onChange={(e) => setDocumentText(e.target.value)}
+              placeholder="Paste your document here, or drag & drop a file..."
+            />
+            <div className="flex justify-between items-center mt-2 text-xs text-gray-400">
+              <span>Supports .txt, .docx, .pdf (text‑based)</span>
+              {uploadedFile && (
+                <span className="text-green-600 font-medium flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                  {uploadedFile.name}
+                </span>
+              )}
+              {Object.keys(overrides).length > 0 && (
+                <span className="text-amber-500 font-medium flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                  </svg>
+                  Overrides active
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Document Viewer */}
+          <div className="bg-white rounded-xl shadow-lg p-6 flex-1 overflow-y-auto min-h-[300px]">
             <DocumentViewer
               spans={spans}
               getSpanAction={getSpanAction}
               onSpanClick={handleSpanClick}
               selectedSpanId={selectedSpanId}
             />
-          </div>
-          <div className="mt-4 max-w-4xl mx-auto">
-            <textarea
-              className="w-full p-2 border rounded"
-              rows={4}
-              value={documentText}
-              onChange={(e) => setDocumentText(e.target.value)}
-              placeholder="Paste your document here, or upload a file..."
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Upload .txt, .docx, or text‑based .pdf – you'll see a preview and can download the redacted file with your manual overrides applied.
-            </p>
-            {uploadedFile && (
-              <p className="text-sm text-green-600 mt-1">
-                ✓ File ready for download: <strong>{uploadedFile.name}</strong> (with overrides applied)
-              </p>
-            )}
-            {Object.keys(overrides).length > 0 && (
-              <p className="text-sm text-amber-600 mt-1">
-                ⚠️ Overrides will be applied to all downloads (text, DOCX, and PDF).
-              </p>
+            {!spans.length && (
+              <div className="flex items-center justify-center h-full text-gray-400 text-center">
+                <p>Upload or paste a document to see redactions</p>
+              </div>
             )}
           </div>
         </div>
-        <div className="w-80 bg-gray-100 border-l overflow-y-auto p-4">
+
+        {/* Inspector Panel */}
+        <div className="lg:w-80 w-full">
           <InspectorPanel
             span={selectedSpan}
             onToggleOverride={() => selectedSpan && toggleOverride(selectedSpan.id)}
