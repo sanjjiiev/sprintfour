@@ -2,7 +2,7 @@ name: Deploy to Hugging Face Space
 
 on:
   push:
-    branches: [ main ]   # or your default branch
+    branches: [ main ]
 
 jobs:
   deploy:
@@ -27,11 +27,12 @@ jobs:
         with:
           context: .
           push: true
+          # Use the correct Space repository name (case-sensitive)
           tags: registry.hf.space/${{ secrets.HF_SPACE_REPO || 'sanjjiiev/glassbox' }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Notify Hugging Face Space to restart
+      - name: Notify Space to restart (optional)
         run: |
           curl -X POST "https://huggingface.co/api/spaces/${{ secrets.HF_SPACE_REPO || 'sanjjiiev/glassbox' }}/restart" \
             -H "Authorization: Bearer ${{ secrets.HF_TOKEN }}"
