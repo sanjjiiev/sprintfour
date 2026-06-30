@@ -12,13 +12,23 @@ const ENTITY_BADGE = {
   IP_ADDRESS:     'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 border-indigo-200 dark:border-indigo-700/40',
   CREDIT_CARD:    'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border-red-200 dark:border-red-700/40',
   US_SSN:         'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border-red-200 dark:border-red-700/40',
+  SAFE_TEXT:      'bg-slate-100 text-slate-500 dark:bg-slate-800/70 dark:text-slate-400 border-slate-200 dark:border-slate-700/50',
+};
+
+// Human-readable entity labels
+const ENTITY_DISPLAY = {
+  EMAIL: 'Email', PHONE_NUMBER: 'Phone Number', PERSON: 'Person',
+  LOCATION: 'Location', ORGANIZATION: 'Organization', DATE_TIME: 'Date / Time',
+  NRP: 'NRP', IP_ADDRESS: 'IP Address', CREDIT_CARD: 'Credit Card',
+  US_SSN: 'Social Security No.', SAFE_TEXT: 'Plain Text',
 };
 
 function EntityBadge({ type }) {
-  const cls = ENTITY_BADGE[type] || 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700';
+  const cls   = ENTITY_BADGE[type] || 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700';
+  const label = ENTITY_DISPLAY[type] || (type?.replace(/_/g, ' ') ?? '—');
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border tracking-wide uppercase ${cls}`}>
-      {type?.replace(/_/g, ' ')}
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border tracking-wide ${cls}`}>
+      {label}
     </span>
   );
 }
@@ -67,7 +77,7 @@ function InspectorPanel({ span, onToggleOverride, currentAction }) {
           </svg>
         </div>
         <p className="text-sm font-semibold text-slate-400 dark:text-slate-500">No token selected</p>
-        <p className="text-xs text-slate-300 dark:text-slate-600 mt-1">Click any highlighted span to inspect it</p>
+        <p className="text-xs text-slate-300 dark:text-slate-600 mt-1">Click any word in the document — highlighted or plain — to inspect or redact it</p>
       </div>
     );
   }
@@ -104,7 +114,18 @@ function InspectorPanel({ span, onToggleOverride, currentAction }) {
 
       {/* Entity type */}
       <InfoRow label="Entity Type">
-        <EntityBadge type={span.entity_type} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <EntityBadge type={span.entity_type} />
+          {span.entity_type === 'SAFE_TEXT' && !currentAction?.includes('REDACTED') && (
+            <span className="text-[0.68rem] text-slate-400 dark:text-slate-500 flex items-center gap-1">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Not auto-detected — you can manually redact
+            </span>
+          )}
+        </div>
       </InfoRow>
 
       {/* Confidence */}
