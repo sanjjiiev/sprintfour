@@ -3,10 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from service import process_document
 from models import AnonymizeResponse
+import traceback
 
 app = FastAPI(title="Glassbox API", version="1.0")
-
-# Allow only local frontend during development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://localhost:3000"],
@@ -22,6 +21,9 @@ async def anonymize(req: AnonymizeRequest):
     try:
         return process_document(req.text)
     except Exception as e:
+        print("\n" + "="*60)
+        traceback.print_exc()
+        print("="*60 + "\n")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/health")

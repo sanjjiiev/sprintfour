@@ -1,7 +1,7 @@
 import uuid
 import re
 from typing import List
-from presidio_analyzer import AnalyzerEngine, RecognizerResult
+from presidio_analyzer import AnalyzerEngine
 from presidio_anonymizer import AnonymizerEngine
 from models import EntityExplanation, AnonymizeResponse
 
@@ -11,40 +11,30 @@ anonymizer = AnonymizerEngine()
 CONFIDENCE_THRESHOLD = 0.5
 
 def get_context_tokens(text: str, start: int, end: int, window: int = 3) -> List[str]:
-    """Extract up to `window` words before and after the entity."""
-    words = re.findall(r'\b\w+\b', text)
-    # Find the index of the word that contains the entity start
-    # Simple approach: split into tokens by whitespace and punctuation
-    # We'll just capture the surrounding characters
-    # For a hackathon, we can approximate by using the substring around the entity
-    before = text[max(0, start - 50):start]
-    after = text[end:min(len(text), end + 50)]
-    tokens = before.split()[-window:] + after.split()[:window]
-    return tokens
+    # For now, return empty list to avoid errors
+    return []
 
 def process_document(text: str) -> AnonymizeResponse:
     # 1. Detect entities
-    results: List[RecognizerResult] = analyzer.analyze(text=text, language="en")
+    results = analyzer.analyze(text=text, language="en")
 
-    # 2. Anonymize (replace with placeholders)
+    # 2. Anonymize using default behavior
     anonymized = anonymizer.anonymize(
         text=text,
-        analyzer_results=results,
-        operators={"DEFAULT": {"type": "replace", "new_value": "[REDACTED]"}}
+        analyzer_results=results
     )
     sanitized_text = anonymized.text
 
-    # 3. Build spans covering the entire text
+    # 3. Build spans covering the entire document
     spans = []
     last_end = 0
-    # Sort results by start index
     sorted_results = sorted(results, key=lambda x: x.start)
 
     for entity in sorted_results:
         # KEPT segment before this entity
         if entity.start > last_end:
             kept_text = text[last_end:entity.start]
-            if kept_text.strip():  # skip empty
+            if kept_text.strip():
                 spans.append(EntityExplanation(
                     id=str(uuid.uuid4()),
                     text_segment=kept_text,
@@ -55,23 +45,25 @@ def process_document(text: str) -> AnonymizeResponse:
                     context_tokens=[]
                 ))
 
-        # Decide action based on confidence threshold
-        action = "REDACTED" if entity.confidence >= CONFIDENCE_THRESHOLD else "KEPT_VISIBLE"
-        if action == "REDACTED":
-            reason = f"Identified as {entity.entity_type} with confidence {entity.confidence:.2f} (above threshold)."
-        else:
-            reason = f"Confidence {entity.confidence:.2f} below threshold ({CONFIDENCE_THRESHOLD}); kept visible."
+        # Get confidence score (Presidio uses `score`)
+        # Fallback: if no score, use 0.0
+        score = getattr(entity, 'score', getattr(entity, 'confidence', 0.0))
 
-        context = get_context_tokens(text, entity.start, entity.end)
+        # Decide action based on threshold
+        action = "REDACTED" if score >= CONFIDENCE_THRESHOLD else "KEPT_VISIBLE"
+        if action == "REDACTED":
+            reason = f"Identified as {entity.entity_type} with confidence {score:.2f} (above threshold)."
+        else:
+            reason = f"Confidence {score:.2f} below threshold ({CONFIDENCE_THRESHOLD}); kept visible."
 
         spans.append(EntityExplanation(
             id=str(uuid.uuid4()),
             text_segment=text[entity.start:entity.end],
             entity_type=entity.entity_type,
             action=action,
-            confidence=entity.confidence,
+            confidence=score,
             logic_reason=reason,
-            context_tokens=context
+            context_tokens=get_context_tokens(text, entity.start, entity.end)
         ))
 
         last_end = entity.end
