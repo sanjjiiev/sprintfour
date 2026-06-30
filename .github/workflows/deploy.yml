@@ -18,7 +18,7 @@ jobs:
       - name: Log in to Hugging Face Docker Registry
         uses: docker/login-action@v3
         with:
-          registry: registry.hf.co
+          registry: registry.hf.space
           username: ${{ secrets.HF_USERNAME || github.actor }}
           password: ${{ secrets.HF_TOKEN }}
 
@@ -27,7 +27,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: registry.hf.co/${{ secrets.HF_SPACE_REPO || 'sanjjiiev/glassbox' }}:latest
+          tags: registry.hf.space/${{ secrets.HF_SPACE_REPO || 'sanjjiiev/glassbox' }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
