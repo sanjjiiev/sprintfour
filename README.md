@@ -1,7 +1,3 @@
----
-
-
-
 # Glassbox – Trust & Explainability for Document Anonymization
 
 **Sprintfour Hackathon 2026 – Submission for Problem 1 (Marcus)**
