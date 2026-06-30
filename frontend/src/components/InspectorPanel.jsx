@@ -152,26 +152,7 @@ function InspectorPanel({ span, onToggleOverride, currentAction }) {
         </p>
       </InfoRow>
 
-      {/* Context tokens */}
-      {span.context_tokens && span.context_tokens.length > 0 && (
-        <InfoRow label="Context">
-          <div className="flex flex-wrap gap-1.5">
-            {span.context_tokens.map((token, i) => (
-              <span
-                key={i}
-                className="px-2 py-0.5 rounded-md text-[0.7rem] font-medium bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700/40"
-              >
-                {token}
-              </span>
-            ))}
-          </div>
-        </InfoRow>
-      )}
-
-      {/* Spacer */}
-      <div className="flex-1" />
-
-      {/* Override toggle */}
+      {/* Override toggle — placed right after Reason so it's always visible */}
       <button
         onClick={onToggleOverride}
         className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 border
@@ -198,6 +179,22 @@ function InspectorPanel({ span, onToggleOverride, currentAction }) {
           </>
         )}
       </button>
+
+      {/* Context tokens — shown below the action button as supplementary info */}
+      {span.context_tokens && span.context_tokens.length > 0 && (
+        <InfoRow label="Context">
+          <div className="flex flex-wrap gap-1.5">
+            {span.context_tokens.map((token, i) => (
+              <span
+                key={i}
+                className="px-2 py-0.5 rounded-md text-[0.7rem] font-medium bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700/40"
+              >
+                {token}
+              </span>
+            ))}
+          </div>
+        </InfoRow>
+      )}
     </div>
   );
 }

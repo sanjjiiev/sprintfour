@@ -9,7 +9,6 @@ pinned: false
 ---
 
 
-
 # Glassbox – Trust & Explainability for Document Anonymization
 
 **Sprintfour Hackathon 2026 – Submission for Problem 1 (Marcus) and Problem 3 (Sam)**
@@ -24,13 +23,10 @@ Live Demo: [https://Sanjjiiev-glassbox.hf.space](https://huggingface.co/spaces/S
 
 Glassbox is built to address two core hackathon scenarios:
 
-- **Problem 1: Trust and Explainability (Marcus)**  
-  Marcus is anxious about using AI tools on sensitive documents. He has heard stories of “redacted” documents where the information was still recoverable. He will not adopt a tool he cannot interrogate.
+- **Problem 1: Trust and Explainability (Marcus)**Marcus is anxious about using AI tools on sensitive documents. He has heard stories of “redacted” documents where the information was still recoverable. He will not adopt a tool he cannot interrogate.
 
-  **Glassbox answers his constant question:** *“Why this, and why not that?”*  
-  Every token shows why it was redacted or kept visible, with a confidence score, entity type, and context.
-
-- **Problem 3: Fixing the Tool’s Mistakes (Sam)**  
+  **Glassbox answers his constant question:** *“Why this, and why not that?”*Every token shows why it was redacted or kept visible, with a confidence score, entity type, and context.
+- **Problem 3: Fixing the Tool’s Mistakes (Sam)**
   Sam is moving quickly and trusts the tool a little too much. The model may hide harmless content or miss PII that should have been redacted.
 
   **Glassbox gives Sam a correction experience:** click a token, inspect the explanation, and instantly toggle the decision between redacted and visible. The risk summary, confidence view, and entity filter help him catch mistakes before they slip through.
@@ -56,18 +52,47 @@ Glassbox is built to address two core hackathon scenarios:
 
 ## Tech Stack
 
-| Layer                   | Technology                                                                                         |
-| ----------------------- | -------------------------------------------------------------------------------------------------- |
-| **Backend**             | Python 3.11, FastAPI, Uvicorn                                                                      |
-| **PII Detection**       | Microsoft Presidio (Analyzer + Anonymizer) + spaCy `en_core_web_sm`                                |
-| **Document Processing** | PyMuPDF (PDF), `python-docx` (DOCX), `mammoth` (DOCX text extraction)                             |
-| **Frontend**            | React 18, Vite, Tailwind CSS                                                                       |
-| **Communication**       | REST API (JSON for text, multipart/form-data for file uploads)                                    |
-| **Deployment**          | Docker, Hugging Face Spaces                                                                        |
+| Layer                         | Technology                                                               |
+| ----------------------------- | ------------------------------------------------------------------------ |
+| **Backend**             | Python 3.11, FastAPI, Uvicorn                                            |
+| **PII Detection**       | Microsoft Presidio (Analyzer + Anonymizer) + spaCy`en_core_web_sm`     |
+| **Document Processing** | PyMuPDF (PDF),`python-docx` (DOCX), `mammoth` (DOCX text extraction) |
+| **Frontend**            | React 18, Vite, Tailwind CSS                                             |
+| **Communication**       | REST API (JSON for text, multipart/form-data for file uploads)           |
+| **Deployment**          | Docker, Hugging Face Spaces                                              |
 
 ---
 
-## Project Structure
+## Why Presidio Instead of an LLM?
+
+This is a deliberate architectural decision and a core strength of Glassbox.
+
+### Privacy-First by Design
+
+Sending documents to a cloud-hosted LLM (OpenAI, Gemini, Claude, etc.) for redaction is **self-defeating** — you are transmitting the very sensitive data you are trying to protect to a third-party server before it has been anonymized. Presidio processes everything **100% locally**, so the raw text never leaves the user's machine or your own infrastructure.
+
+### Deterministic & Auditable
+
+LLMs are **non-deterministic** — the same input can produce different redactions on different runs. This is unacceptable in compliance and legal contexts where auditability is required. Presidio uses **rule-based recognisers (regex, checksums) and NLP models (spaCy NER)** that produce consistent, reproducible results every time. Every decision can be traced to a specific recogniser rule.
+
+### Speed & Cost at Scale
+
+LLM inference adds **hundreds of milliseconds to seconds** of latency per request and incurs **per-token API costs** that grow with document size. Presidio runs in-process with **sub-100ms response times** for typical documents and **zero marginal cost** per analysis after deployment.
+
+### Compliance-Friendly Entities
+
+Presidio ships with **30+ pre-built PII recognisers** covering GDPR, HIPAA, CCPA, and other regulatory frameworks — credit cards (Luhn-checked), US SSNs, IBANs, IP addresses, email, phone numbers, dates, and more. These are validated against real-world patterns, not learned probabilistically from training data.
+
+### Explainability Is Structural, Not Promped
+
+With an LLM, generating an explanation for each redaction would require a second prompt round-trip and still produce a natural-language justification that cannot be independently verified. Presidio's `RecognizerResult` directly exposes the **recogniser name, confidence score, matched pattern, and character offsets** — the explanation is a structural property of the detection, not a generated afterthought.
+
+### When an LLM Would Be Better
+
+LLMs excel at **contextual understanding** of novel or implicit PII (e.g., redacting a person's nickname only when context implies it is sensitive). A future hybrid approach — Presidio for reliable structured PII, an on-device LLM for contextual edge cases — would offer the best of both worlds without sacrificing privacy.
+
+---
+
 
 ```text
 glassbox/
@@ -162,7 +187,7 @@ To deploy your own copy:
 3. **Review the suggested redactions** – tokens are colour‑coded:
    - **REDACTED** – sensitive information removed.
    - **KEPT_VISIBLE** – safe text.
-4. **Click any token** – the Inspector Panel on the right shows:
+4. **Click any token** — highlighted *or* plain text — the Inspector Panel on the right shows:
    - Entity type (e.g., `EMAIL_ADDRESS`)
    - Confidence score (with colour indicator)
    - Explanation (why it was redacted or kept)
@@ -281,5 +306,4 @@ MIT – free to use for educational and hackathon purposes.
 ---
 
 *Built with care for the Sprintfour Hackathon 2026 – making anonymisation transparent, trustworthy, and user‑friendly.*
-
 
