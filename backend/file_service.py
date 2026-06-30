@@ -3,12 +3,54 @@ import fitz
 from docx import Document
 from docx.shared import RGBColor
 from docx.enum.text import WD_COLOR_INDEX
-from presidio_analyzer import AnalyzerEngine
+from presidio_analyzer import AnalyzerEngine, RecognizerResult
 from presidio_anonymizer import AnonymizerEngine
 
 analyzer = AnalyzerEngine()
 anonymizer = AnonymizerEngine()
 CONFIDENCE_THRESHOLD = 0.5
+
+def get_entity_priority(entity: RecognizerResult) -> int:
+    """
+    Return a priority for entity types – higher means preferred when overlapping.
+    """
+    priority = {
+        "EMAIL_ADDRESS": 3,
+        "PHONE_NUMBER": 2,
+        "PERSON": 2,
+        "LOCATION": 2,
+        "URL": 1,
+    }
+    return priority.get(entity.entity_type, 0)
+
+def merge_overlapping_entities(results: list) -> list:
+    """
+    Merge overlapping or contained entities, keeping the most relevant one.
+    Priority: higher confidence > higher entity priority > longer span.
+    """
+    if not results:
+        return []
+    # Sort by start, then by end (shorter first)
+    sorted_results = sorted(results, key=lambda x: (x.start, x.end))
+    merged = []
+    for entity in sorted_results:
+        if not merged:
+            merged.append(entity)
+            continue
+        last = merged[-1]
+        if entity.start < last.end:
+            # Overlap or containment – decide which to keep
+            if entity.score > last.score:
+                merged[-1] = entity
+            elif entity.score == last.score:
+                if get_entity_priority(entity) > get_entity_priority(last):
+                    merged[-1] = entity
+                elif get_entity_priority(entity) == get_entity_priority(last):
+                    if (entity.end - entity.start) > (last.end - last.start):
+                        merged[-1] = entity
+        else:
+            merged.append(entity)
+    return merged
 
 def redact_pdf(pdf_bytes: bytes, overrides: dict = None) -> bytes:
     """
@@ -20,19 +62,18 @@ def redact_pdf(pdf_bytes: bytes, overrides: dict = None) -> bytes:
 
     # Extract full text for detection
     full_text = ""
-    page_texts = []
     for page_num in range(len(doc)):
         page = doc[page_num]
         page_text = page.get_text("text")
-        page_texts.append(page_text)
         full_text += page_text + "\n"
 
     if not full_text.strip():
         doc.close()
         raise ValueError("PDF contains no selectable text.")
 
-    # Detect entities
-    results = analyzer.analyze(text=full_text, language="en")
+    # Detect entities and merge overlapping
+    raw_results = analyzer.analyze(text=full_text, language="en")
+    results = merge_overlapping_entities(raw_results)
 
     # 1. Redact detected entities unless overridden to KEPT_VISIBLE
     for entity in results:
@@ -81,7 +122,9 @@ def redact_docx(docx_bytes: bytes, overrides: dict = None) -> bytes:
     if not full_text.strip():
         return docx_bytes
 
-    results = analyzer.analyze(text=full_text, language="en")
+    # Detect entities and merge overlapping
+    raw_results = analyzer.analyze(text=full_text, language="en")
+    results = merge_overlapping_entities(raw_results)
 
     # Build a set of text segments that should be redacted
     redact_set = set()
@@ -100,40 +143,35 @@ def redact_docx(docx_bytes: bytes, overrides: dict = None) -> bytes:
             redact_set.add(text_segment)
 
     # Now apply redactions to the document
-    # We'll iterate over paragraphs and runs, and replace matching text with [REDACTED]
-    # For each paragraph, we'll build a list of replacements
     for paragraph in doc.paragraphs:
-        # We'll process the whole paragraph text
         para_text = paragraph.text
-        # Check if any redact_set text is in this paragraph
-        replacements = []
-        for target in redact_set:
-            if target in para_text:
-                # Replace all occurrences
-                # We need to preserve formatting: we'll use a similar approach as before
-                # Since we have multiple replacements, we'll do them in order
-                # We'll keep it simple: if any target is found, we replace the whole paragraph content
-                # and apply black highlight.
-                # But we might want to replace only specific parts.
-                # For simplicity, we'll replace the entire paragraph text with the redacted version.
-                # We'll keep the first run's formatting.
-                if paragraph.runs:
-                    template_run = paragraph.runs[0]
-                    new_text = para_text
-                    for target in redact_set:
-                        new_text = new_text.replace(target, "[REDACTED]")
-                    paragraph.clear()
-                    new_run = paragraph.add_run(new_text)
-                    new_run.bold = template_run.bold
-                    new_run.italic = template_run.italic
-                    new_run.underline = template_run.underline
-                    new_run.font.color.rgb = RGBColor(255, 255, 255)
-                    new_run.font.highlight_color = WD_COLOR_INDEX.BLACK
-                else:
-                    # No runs, just set text
-                    for target in redact_set:
-                        paragraph.text = paragraph.text.replace(target, "[REDACTED]")
-                break  # we already replaced, skip other targets in this paragraph
+        if not para_text:
+            continue
+        # Check if any target is in this paragraph
+        needs_redaction = any(target in para_text for target in redact_set)
+        if not needs_redaction:
+            continue
+
+        # Preserve formatting from first run if exists
+        if paragraph.runs:
+            template_run = paragraph.runs[0]
+            new_text = para_text
+            for target in redact_set:
+                new_text = new_text.replace(target, "[REDACTED]")
+            paragraph.clear()
+            new_run = paragraph.add_run(new_text)
+            # Copy formatting
+            new_run.bold = template_run.bold
+            new_run.italic = template_run.italic
+            new_run.underline = template_run.underline
+            # Apply white text with black highlight
+            new_run.font.color.rgb = RGBColor(255, 255, 255)
+            new_run.font.highlight_color = WD_COLOR_INDEX.BLACK
+        else:
+            # No runs: set text directly
+            for target in redact_set:
+                if target in paragraph.text:
+                    paragraph.text = paragraph.text.replace(target, "[REDACTED]")
 
     output = io.BytesIO()
     doc.save(output)
