@@ -2,7 +2,7 @@ import React from 'react';
 
 // Entity type badge colors
 const ENTITY_BADGE = {
-  EMAIL:          'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200 dark:border-blue-700/40',
+  EMAIL_ADDRESS:  'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200 dark:border-blue-700/40',
   PHONE_NUMBER:   'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700/40',
   PERSON:         'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 border-violet-200 dark:border-violet-700/40',
   LOCATION:       'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200 dark:border-amber-700/40',
@@ -17,7 +17,7 @@ const ENTITY_BADGE = {
 
 // Human-readable entity labels
 const ENTITY_DISPLAY = {
-  EMAIL: 'Email', PHONE_NUMBER: 'Phone Number', PERSON: 'Person',
+  EMAIL_ADDRESS: 'Email', PHONE_NUMBER: 'Phone Number', PERSON: 'Person',
   LOCATION: 'Location', ORGANIZATION: 'Organization', DATE_TIME: 'Date / Time',
   NRP: 'NRP', IP_ADDRESS: 'IP Address', CREDIT_CARD: 'Credit Card',
   US_SSN: 'Social Security No.', SAFE_TEXT: 'Plain Text',

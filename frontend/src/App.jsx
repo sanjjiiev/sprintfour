@@ -5,7 +5,7 @@ import mammoth from 'mammoth';
 
 // ─── Entity type → display label map ────────────────────────────
 const ENTITY_LABELS = {
-  EMAIL: 'Email', PHONE_NUMBER: 'Phone', PERSON: 'Person',
+  EMAIL_ADDRESS: 'Email', PHONE_NUMBER: 'Phone', PERSON: 'Person',
   LOCATION: 'Location', ORGANIZATION: 'Org', DATE_TIME: 'Date/Time',
   NRP: 'NRP', IP_ADDRESS: 'IP', CREDIT_CARD: 'Credit Card', US_SSN: 'SSN',
 };
@@ -133,20 +133,34 @@ function App() {
   // ── Summary statistics ─────────────────────────────────────────
   const summary = useMemo(() => {
     if (!spans.length) return null;
-    let redacted = 0, visible = 0, overridden = 0, totalConfidence = 0;
+    
+    // We only count actual PII spans OR plain text spans that the user manually redacted
+    const piiSpans = spans.filter(span => span.entity_type !== 'SAFE_TEXT' || overrides[span.id] === 'REDACTED');
+    
+    let redacted = 0, visible = 0, overridden = 0, totalConfidence = 0, detectedCount = 0;
+    
     spans.forEach(span => {
+      if (overrides[span.id]) overridden++;
+    });
+
+    piiSpans.forEach(span => {
       const action = getSpanAction(span.id);
       if (action === 'REDACTED') redacted++;
       else visible++;
-      if (overrides[span.id]) overridden++;
-      totalConfidence += span.confidence;
+      
+      // Calculate avg confidence only for auto-detected PII to avoid skews from safe text
+      if (span.entity_type !== 'SAFE_TEXT') {
+        totalConfidence += span.confidence;
+        detectedCount++;
+      }
     });
+
     return {
-      total: spans.length,
+      total: piiSpans.length,
       redacted,
       visible,
       overridden,
-      avgConfidence: (totalConfidence / spans.length) || 0,
+      avgConfidence: detectedCount > 0 ? (totalConfidence / detectedCount) : 0,
     };
   }, [spans, overrides, getSpanAction]);
 
