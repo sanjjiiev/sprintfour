@@ -1,3 +1,19 @@
+
+
+```
+---
+title: Glassbox
+emoji: 🔍
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+```
+
+
+
 # Glassbox – Trust & Explainability for Document Anonymization
 
 **Sprintfour Hackathon 2026 – Submission for Problem 1 (Marcus)**
@@ -69,8 +85,6 @@ glassbox/
 ├── README.md
 └── .gitignore
 ```
-
-
 
 ## Setup & Run Locally
 
