@@ -1,6 +1,6 @@
 
 
-```
+
 ---
 title: Glassbox
 emoji: 🔍
@@ -10,9 +10,6 @@ sdk: docker
 app_port: 7860
 pinned: false
 ---
-```
-
-
 
 # Glassbox – Trust & Explainability for Document Anonymization
 
