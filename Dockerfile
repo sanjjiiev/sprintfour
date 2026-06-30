@@ -2,7 +2,6 @@
 FROM python:3.11-slim AS backend
 
 # Install system dependencies for PyMuPDF (fitz) and other native libs
-# In Debian bookworm/trixie, libgl1-mesa-glx is replaced by libgl1 or libglx-mesa0
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
@@ -18,8 +17,8 @@ COPY backend/requirements.txt /app/backend/
 RUN pip install --upgrade pip setuptools wheel && \
     pip install -r /app/backend/requirements.txt
 
-# Download spaCy model
-RUN python -m spacy download en_core_web_sm
+# Install spaCy model via pip (avoids the download command bug)
+RUN pip install en-core-web-sm
 
 # Copy the rest of the backend code
 COPY backend/ /app/backend/
