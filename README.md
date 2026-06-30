@@ -17,6 +17,8 @@ Glassbox is a full-stack document anonymization tool that **redacts PII** from t
 
 Live Demo: [https://Sanjjiiev-glassbox.hf.space](https://huggingface.co/spaces/Sanjjiiev/glassbox)
 
+Demo Video: [CLICK HERE](https://drive.google.com/file/d/1qxtUVePAGXL7YpsKNAUCIrXk6RoBntz5/view?usp=sharing)
+
 ---
 
 ## The Problem We Solve
